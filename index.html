@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Tiny Thief Tribute</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+  <style>
+    /* 页面不留边距、不出滚动条，背景纯黑（万一有一瞬间空档也是黑的） */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    /* 画布固定在视口正中心：
+       缩放比例由 JS 计算（fitGame），保证：
+       - 等比缩放，角色和场景不变形
+       - 画面铺满整个窗口，不留任何黑边
+       - 窗口比例不匹配时，超出窗口的边缘被裁掉 */
+    canvas {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform-origin: center center;
+      transform: translate(-50%, -50%); /* 缩放比例由 JS 追加 */
+    }
+  </style>
+</head>
+<body>
+  <script src="sketch.js"></script>
+  <script>
+    // ---------- 等比放大 + 居中裁切，实现真正全屏铺满 ----------
+    // 缩放比例 = max(窗口宽/游戏宽, 窗口高/游戏高)
+    // 取 max 保证画布完全盖住窗口（不够的边用"放大"补上，多出的边被裁掉）
+    function fitGame() {
+      var canvas = document.querySelector("canvas");
+      if (!canvas) {
+        return; // p5 还没创建画布，等 load 事件再调用
+      }
+      // 游戏的逻辑尺寸（900x600），注意用 offsetWidth 拿 CSS 尺寸，
+      // 不能用 canvas.width（那是乘过像素密度的绘图缓冲区宽度）
+      var gameW = canvas.offsetWidth;
+      var gameH = canvas.offsetHeight;
+      var scale = Math.max(window.innerWidth / gameW, window.innerHeight / gameH);
+      canvas.style.transform = "translate(-50%, -50%) scale(" + scale + ")";
+    }
+
+    // 窗口大小变化（包括进出全屏）时重新计算缩放
+    window.addEventListener("resize", fitGame);
+    // 页面加载完（p5 已经建好画布）后先算一次
+    window.addEventListener("load", fitGame);
+    // 兜底：直接跑一次，防止 load 之前画布已存在的情况
+    fitGame();
+
+    // ---------- 自定义鼠标点击坐标计算 ----------
+    // 为什么不用 p5 自带的 mouseX/mouseY？
+    // 因为画布经过 CSS transform 缩放，进出全屏的瞬间 p5 的坐标映射
+    // 会短暂失效（拿到原始屏幕像素坐标），导致小偷被钳制到画布右下角。
+    // 这里自己用 getBoundingClientRect 实时换算，每次点击都精确：
+    //   画布坐标 = (屏幕坐标 - 画布左上角) × (游戏逻辑尺寸 / 画布实际显示尺寸)
+    window.addEventListener("mousedown", function (e) {
+      // 只处理鼠标左键
+      if (e.button !== 0) {
+        return;
+      }
+      var canvas = document.querySelector("canvas");
+      if (!canvas) {
+        return;
+      }
+      var rect = canvas.getBoundingClientRect();
+      var gameX = (e.clientX - rect.left) * (canvas.offsetWidth / rect.width);
+      var gameY = (e.clientY - rect.top) * (canvas.offsetHeight / rect.height);
+      // 把精确的游戏坐标交给 sketch.js 的点击处理函数
+      if (window.handleGameClick) {
+        window.handleGameClick(gameX, gameY);
+      }
+    });
+
+    // ---------- 双击画布切换浏览器全屏 ----------
+    // 全屏后浏览器界面（地址栏等）会隐藏，画面同样由 fitGame 铺满
+    document.addEventListener("dblclick", function () {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    });
+  </script>
+</body>
+</html>
